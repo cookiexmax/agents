@@ -8,7 +8,7 @@ export default {
         ready: true,
         keyConfigured: Boolean(env.GEMINI_API_KEY),
         source: 'github/cookiexmax/agents',
-        pipelineTest: 'github-to-cloudflare-manual-v1'
+        pipelineTest: 'github-push-auto-build-v2'
       }, { headers: { 'Cache-Control': 'no-store' } });
     }
     if (url.pathname !== '/verify-7c91e8b4a52d4f0e9b13c6a27d50f841') {
