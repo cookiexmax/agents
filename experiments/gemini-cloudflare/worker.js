@@ -41,13 +41,20 @@ export default {
             headers: { 'Content-Type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
             body: JSON.stringify({
               contents: [{ parts: [{ text: isCouncil ? councilPrompt : (isDemo ? demoPrompt : 'Reply exactly: COOKIEXMAX GEMINI CONNECTED') }] }],
-              generationConfig: { maxOutputTokens: isCouncil ? 1300 : (isDemo ? 650 : 160), temperature: 0 }
+              generationConfig: { maxOutputTokens: isCouncil ? 4096 : (isDemo ? 1200 : 160), temperature: 0, ...(isDemo ? { responseMimeType: 'application/json' } : {}) }
             })
           });
           const json = await response.json();
           const reply = json.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || null;
-          attempts.push({ model, status: response.status, error: json.error?.message?.slice(0, 140) || null });
-          if (response.ok) return Response.json({ ok: true, task: isCouncil ? 'gemini-council-proposal' : (isDemo ? 'creative-brief-demo' : 'connection-verification'), httpStatus: response.status, model, reply, attempts }, { headers: { 'Cache-Control': isDemo ? 'public, max-age=3600' : 'no-store' } });
+          const finishReason = json.candidates?.[0]?.finishReason || null;
+          let parsed = null;
+          if (isDemo && reply) {
+            try { parsed = JSON.parse(reply.replace(/^\`\`\`(?:json)?\\s*|\\s*\`\`\`$/g, '').trim()); } catch (_) {}
+          }
+          const complete = Boolean(reply) && (!isDemo || (parsed !== null && finishReason === 'STOP'));
+          attempts.push({ model, status: response.status, finishReason, complete, error: json.error?.message?.slice(0, 140) || null });
+          if (response.ok && complete) return Response.json({ ok: true, task: isCouncil ? 'gemini-council-proposal' : (isDemo ? 'creative-brief-demo' : 'connection-verification'), httpStatus: response.status, model, reply: isDemo ? undefined : reply, result: isDemo ? parsed : undefined, finishReason, attempts }, { headers: { 'Cache-Control': 'no-store' } });
+          if (response.ok && !complete) continue;
           if (![429, 500, 502, 503, 504].includes(response.status)) break;
         } catch (error) {
           attempts.push({ model, error: String(error).slice(0, 140) });
